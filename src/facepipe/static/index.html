@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>face-pipeline</title>
+  <style>
+    /* Deliberately plain. The brief says looks are not being judged, so the time went
+       into the pipeline and the measurements instead. */
+    body { font-family: ui-monospace, Menlo, monospace; margin: 24px; max-width: 900px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.sub { color: #666; margin: 0 0 20px; font-size: 13px; }
+    img { border: 1px solid #ccc; display: block; max-width: 100%; }
+    section { margin-top: 20px; }
+    h2 { font-size: 14px; margin: 0 0 8px; }
+    table { border-collapse: collapse; font-size: 13px; }
+    td { padding: 2px 16px 2px 0; }
+    .known { color: #0a0; }
+    .unknown { color: #c00; }
+    input, button { font: inherit; padding: 4px 8px; }
+    #error { color: #c00; }
+  </style>
+</head>
+<body>
+  <h1>face-pipeline</h1>
+  <p class="sub">camera &rarr; detect &rarr; align &rarr; embed &rarr; match against enrolled people</p>
+
+  <img id="feed" src="/video_feed" alt="live feed" width="640">
+  <p id="error"></p>
+
+  <section>
+    <h2>enrol the face in frame</h2>
+    <input id="name" placeholder="name" size="24">
+    <button id="enroll">enrol</button>
+    <span id="enrollResult"></span>
+  </section>
+
+  <section>
+    <h2>in frame now</h2>
+    <div id="faces">nothing yet</div>
+  </section>
+
+  <section>
+    <h2>enrolled</h2>
+    <div id="gallery">nobody yet</div>
+  </section>
+
+  <section>
+    <h2>timing</h2>
+    <table id="timing"></table>
+  </section>
+
+<script>
+async function refresh() {
+  try {
+    const status = await (await fetch('/api/status')).json();
+
+    document.getElementById('error').textContent = status.error || '';
+
+    document.getElementById('faces').innerHTML = status.faces.length
+      ? status.faces.map(f =>
+          `<div class="${f.known ? 'known' : 'unknown'}">${f.known ? f.name : 'Unknown'} &middot; ${f.score}</div>`
+        ).join('')
+      : 'no faces in frame';
+
+    // Threshold shown next to the scores on purpose: it is the number that decides
+    // known from unknown, and it is easier to reason about when it is visible.
+    const rows = Object.entries(status.stage_ms)
+      .map(([stage, ms]) => `<tr><td>${stage}</td><td>${ms} ms</td></tr>`).join('');
+    document.getElementById('timing').innerHTML =
+      rows + `<tr><td>fps</td><td>${status.fps}</td></tr>` +
+             `<tr><td>match threshold</td><td>${status.threshold}</td></tr>`;
+
+    const gallery = await (await fetch('/api/gallery')).json();
+    const people = Object.entries(gallery.people);
+    document.getElementById('gallery').innerHTML = people.length
+      ? people.map(([name, n]) =>
+          `<div>${name} &middot; ${n} embedding(s) <button onclick="forget('${name}')">forget</button></div>`
+        ).join('')
+      : 'nobody yet';
+  } catch (err) {
+    document.getElementById('error').textContent = err;
+  }
+}
+
+async function forget(name) {
+  await fetch('/api/gallery/' + encodeURIComponent(name), { method: 'DELETE' });
+  refresh();
+}
+
+document.getElementById('enroll').onclick = async () => {
+  const name = document.getElementById('name').value;
+  const result = document.getElementById('enrollResult');
+  const response = await fetch('/api/enroll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  const body = await response.json();
+  result.textContent = response.ok ? `added ${body.name}` : `failed: ${body.detail}`;
+  refresh();
+};
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

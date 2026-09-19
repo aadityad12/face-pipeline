@@ -11,6 +11,9 @@ dependencies = [
     "uvicorn[standard]>=0.30",
 ]
 
+[project.scripts]
+serve = "facepipe.server:run"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -20,5 +23,6 @@ packages = ["src/facepipe"]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
 ]
