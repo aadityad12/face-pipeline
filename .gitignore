@@ -1,0 +1,13 @@
+# Model weights are ~300MB, downloaded by scripts/fetch_models.py
+models/
+
+# uv-managed virtualenv
+.venv/
+
+__pycache__/
+*.pyc
+
+# Frames and crops dumped while debugging
+data/scratch/
+
+.DS_Store
