@@ -13,7 +13,6 @@ Three things happen here and all three are easy to get silently wrong:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -21,6 +20,7 @@ import numpy as np
 import onnxruntime as ort
 
 from facepipe.config import DET_INPUT_SIZE, DET_MODEL
+from facepipe.types import Detection
 
 # Confirmed from the model's own output shapes in issue #1, not guessed:
 # stride 8 -> 80x80 grid = 6400 points, but the score tensor has 12800 rows, so 2 anchors
@@ -34,15 +34,6 @@ PIXEL_STD = 128.0
 
 SCORE_THRESHOLD = 0.5
 NMS_IOU_THRESHOLD = 0.4
-
-
-@dataclass
-class Detection:
-    """One face, in original frame coordinates."""
-
-    bbox: np.ndarray  # (4,) x1, y1, x2, y2
-    score: float
-    kps: np.ndarray  # (5, 2) right eye, left eye, nose, right mouth, left mouth
 
 
 # --------------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from facepipe.gallery import Gallery, Match
 from facepipe.pipeline import RecognizedFace
-from facepipe.scrfd import Detection
+from facepipe.types import Detection
 from facepipe.server import create_app
 
 
