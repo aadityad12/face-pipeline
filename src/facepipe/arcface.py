@@ -17,9 +17,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import onnxruntime as ort
 
 from facepipe.config import REC_INPUT_SIZE, REC_MODEL
+from facepipe.models import load_session
 
 # Recognition uses a different normalization from detection: /127.5 rather than /128.
 PIXEL_MEAN = 127.5
@@ -48,9 +48,7 @@ class ArcFaceEmbedder:
     def __init__(
         self, model_path: Path = REC_MODEL, input_size: tuple[int, int] = REC_INPUT_SIZE
     ):
-        self.session = ort.InferenceSession(
-            str(model_path), providers=["CPUExecutionProvider"]
-        )
+        self.session = load_session(model_path)
         self.input_name = self.session.get_inputs()[0].name
         self.input_size = input_size
 

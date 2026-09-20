@@ -127,7 +127,7 @@ def test_fpga_backend_is_honestly_unimplemented():
 def test_nothing_above_the_seam_imports_onnxruntime():
     """The seam is only real if the rest of the pipeline does not reach past it."""
     src = Path(__file__).resolve().parents[1] / "src" / "facepipe"
-    allowed = {"scrfd.py", "arcface.py"}  # below the line: these own the runtime
+    allowed = {"scrfd.py", "arcface.py", "models.py"}  # below the line: own the runtime
     imports = re.compile(r"^\s*(?:import|from)\s+onnxruntime", re.MULTILINE)
 
     offenders = [
@@ -136,3 +136,17 @@ def test_nothing_above_the_seam_imports_onnxruntime():
         if path.name not in allowed and imports.search(path.read_text())
     ]
     assert offenders == [], f"these reach past the backend seam: {offenders}"
+
+
+def test_missing_model_says_how_to_get_it(tmp_path):
+    """A fresh clone has no weights, so this error is the first one a reviewer sees.
+
+    onnxruntime's own NO_SUCHFILE tells you a path is missing but not that there is a
+    script whose entire job is to put a file there.
+    """
+    from facepipe.models import load_session
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        load_session(tmp_path / "det_10g.onnx")
+
+    assert "scripts/fetch_models.py" in str(excinfo.value)

@@ -17,9 +17,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import onnxruntime as ort
 
 from facepipe.config import DET_INPUT_SIZE, DET_MODEL
+from facepipe.models import load_session
 from facepipe.types import Detection
 
 # Confirmed from the model's own output shapes in issue #1, not guessed:
@@ -206,9 +206,7 @@ class SCRFDDetector:
         score_threshold: float = SCORE_THRESHOLD,
         iou_threshold: float = NMS_IOU_THRESHOLD,
     ):
-        self.session = ort.InferenceSession(
-            str(model_path), providers=["CPUExecutionProvider"]
-        )
+        self.session = load_session(model_path)
         self.input_name = self.session.get_inputs()[0].name
         self.input_size = input_size
         self.score_threshold = score_threshold
