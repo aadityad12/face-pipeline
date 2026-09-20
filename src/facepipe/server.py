@@ -183,11 +183,13 @@ def create_app(pipeline: Pipeline | None = None, worker: CameraWorker | None = N
     return app
 
 
-app = create_app()
-
-
+# Deliberately no module-level `app = create_app()`. That ran on import, which built a
+# Pipeline, which loaded ~190MB of models, so simply importing this module needed the
+# weights to already be on disk. A fresh clone does not have them yet, so the tests could
+# not even be collected. uvicorn takes a factory instead, and importing the module is now
+# free (issue #4).
 def run() -> None:
     """Entry point for `uv run serve`."""
     import uvicorn
 
-    uvicorn.run("facepipe.server:app", host="127.0.0.1", port=8000)
+    uvicorn.run("facepipe.server:create_app", factory=True, host="127.0.0.1", port=8000)

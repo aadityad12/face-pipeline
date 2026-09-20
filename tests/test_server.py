@@ -139,3 +139,26 @@ def test_index_page_is_served(client_factory):
     response = client.get("/")
     assert response.status_code == 200
     assert "video_feed" in response.text
+
+
+def test_importing_the_server_does_not_load_the_models():
+    """A fresh clone has no model weights yet, so importing must not need them.
+
+    server.py used to end with `app = create_app()`, which ran on import, built a
+    Pipeline and loaded ~190MB of ONNX. On a clone with no models downloaded, pytest
+    could not even collect this file. uvicorn is given a factory instead.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    script = textwrap.dedent(
+        """
+        import sys
+        import facepipe.server
+        assert "onnxruntime" not in sys.modules, "importing the server loaded a model"
+        print("clean")
+        """
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert "clean" in result.stdout, result.stderr
