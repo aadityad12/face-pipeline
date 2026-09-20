@@ -20,6 +20,7 @@ import numpy as np
 from facepipe.align import align_face
 from facepipe.backends import Detection, FaceDetector, FaceEmbedder
 from facepipe.gallery import MATCH_THRESHOLD, Gallery, Match
+from facepipe.tracker import Tracker
 
 
 @dataclass
@@ -63,6 +64,8 @@ class Pipeline:
         embedder: FaceEmbedder | None = None,
         gallery: Gallery | None = None,
         threshold: float = MATCH_THRESHOLD,
+        tracker: Tracker | None = None,
+        track: bool = True,
     ):
         # The ONNX backends are imported here rather than at the top of the module, so
         # that a Pipeline built with other backends never loads onnxruntime at all. That
@@ -79,6 +82,9 @@ class Pipeline:
         self.embedder = embedder if embedder is not None else ArcFaceEmbedder()
         self.gallery = gallery if gallery is not None else Gallery()
         self.threshold = threshold
+        # Tracking is on by default but can be turned off, which is how #9 was measured
+        # and how a caller processing unrelated still images should run it.
+        self.tracker = tracker if tracker is not None else (Tracker() if track else None)
         self.timings = Timings()
 
     def process(self, frame: np.ndarray) -> list[RecognizedFace]:
@@ -86,10 +92,26 @@ class Pipeline:
         detections = self.detector.detect(frame)
         self.timings.record("detect", (time.perf_counter() - start) * 1000)
 
+        # Detection runs every frame; embedding does not have to. The tracker decides
+        # which faces are new enough or stale enough to be worth 64ms (issue #9).
+        tracks = (
+            self.tracker.update([d.bbox for d in detections])
+            if self.tracker is not None
+            else [None] * len(detections)
+        )
+
         results: list[RecognizedFace] = []
         align_ms = embed_ms = match_ms = 0.0
 
-        for detection in detections:
+        for detection, track in zip(detections, tracks):
+            if track is not None and not self.tracker.needs_embedding(track):
+                results.append(
+                    RecognizedFace(
+                        detection=detection, match=Match(name=track.name, score=track.score)
+                    )
+                )
+                continue
+
             t0 = time.perf_counter()
             aligned = align_face(frame, detection.kps)
             t1 = time.perf_counter()
@@ -101,6 +123,9 @@ class Pipeline:
             align_ms += (t1 - t0) * 1000
             embed_ms += (t2 - t1) * 1000
             match_ms += (t3 - t2) * 1000
+
+            if track is not None:
+                self.tracker.record(track, match.name, match.score)
             results.append(RecognizedFace(detection=detection, match=match))
 
         self.timings.record("align", align_ms)

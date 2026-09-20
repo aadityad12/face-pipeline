@@ -133,3 +133,29 @@ it is a face that is simply never reported, and "person standing further away" i
 the case a door camera meets. The 1.7x is not worth a failure I cannot see. The size is a
 constructor argument, so it is one line to change if the camera geometry is known, which
 is the situation a board deployment would actually be in.
+
+## Tracking (issue #9)
+
+Detection is per frame; embedding is per face. So the cost of a crowd is entirely in the
+embedder, and a room full of people who are not moving much spends nearly all its time
+re-answering a question it already answered.
+
+Boxes that overlap heavily between consecutive frames are the same person, since a face
+cannot cross the room in 180ms. Each track keeps its name, and ArcFace only runs for a
+face that is new or whose answer has gone stale (every 30 frames, so a wrong name cannot
+stick forever).
+
+6 faces in a 640x443 frame, 20 frames:
+
+```
+                                 no tracking      tracking
+static scene                   549.5 ms/frame  126.4 ms/frame   1.82 -> 7.91 fps
+faces drifting a few px/frame  530.0 ms/frame  120.9 ms/frame   1.89 -> 8.27 fps
+```
+
+4.3x, and it survives the faces moving, which is the case that matters. The remaining
+~125ms is detection, which tracking cannot help with because it runs once per frame no
+matter what.
+
+Note what this does *not* change: with a single face the win is much smaller, because
+detection is 63% of that frame already. Tracking is a crowd optimisation.
