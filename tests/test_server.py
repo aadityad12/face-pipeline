@@ -162,3 +162,74 @@ def test_importing_the_server_does_not_load_the_models():
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert "clean" in result.stdout, result.stderr
+
+
+def test_camera_worker_loop_produces_annotated_jpegs(tmp_path, monkeypatch):
+    """Exercises the real background loop, with a fake camera instead of a webcam.
+
+    Everything else in this file replaces the worker with a stub, so the loop that
+    actually runs in production had no test at all. This one uses fake backends so it
+    still needs no model weights.
+    """
+    import time
+
+    import facepipe.server as server_module
+    from facepipe.pipeline import Pipeline
+    from facepipe.server import CameraWorker
+    from tests.test_backends import FakeDetector, FakeEmbedder
+
+    class FakeCamera:
+        released = False
+
+        def read(self):
+            return np.full((480, 640, 3), 128, dtype=np.uint8)
+
+        def release(self):
+            FakeCamera.released = True
+
+    monkeypatch.setattr(server_module, "CameraSource", lambda *a, **k: FakeCamera())
+
+    pipeline = Pipeline(
+        detector=FakeDetector(), embedder=FakeEmbedder(), gallery=Gallery(tmp_path)
+    )
+    worker = CameraWorker(pipeline)
+    worker.start()
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and worker.latest_jpeg is None:
+        time.sleep(0.02)
+    worker.stop()
+
+    jpeg, frame = worker.snapshot()
+    assert worker.error is None
+    assert jpeg is not None and jpeg.startswith(b"\xff\xd8")  # JPEG magic number
+    assert frame is not None and frame.shape == (480, 640, 3)
+    assert len(worker.faces) == 1
+    assert FakeCamera.released, "the camera must be handed back when the loop stops"
+
+
+def test_camera_worker_records_an_error_instead_of_dying(tmp_path, monkeypatch):
+    """No camera should show up on the dashboard, not vanish into a dead thread."""
+    import time
+
+    import facepipe.server as server_module
+    from facepipe.pipeline import Pipeline
+    from facepipe.server import CameraWorker
+    from tests.test_backends import FakeDetector, FakeEmbedder
+
+    def no_camera(*args, **kwargs):
+        raise RuntimeError("could not open camera 0")
+
+    monkeypatch.setattr(server_module, "CameraSource", no_camera)
+
+    worker = CameraWorker(
+        Pipeline(detector=FakeDetector(), embedder=FakeEmbedder(), gallery=Gallery(tmp_path))
+    )
+    worker.start()
+
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and worker.error is None:
+        time.sleep(0.02)
+    worker.stop()
+
+    assert worker.error is not None and "could not open camera" in worker.error

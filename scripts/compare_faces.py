@@ -63,18 +63,25 @@ def main() -> None:
     ]
     embeddings = [embedder.embed(crop) for crop in crops]
 
+    def label(path: str) -> str:
+        # Last two parts, because every person's photos are numbered the same way and
+        # "00.jpg vs 00.jpg" looks like a file compared against itself. The dumped crops
+        # would collide on disk for the same reason.
+        parts = Path(path).parts
+        return "/".join(parts[-2:]) if len(parts) > 1 else parts[-1]
+
     if args.dump:
         out_dir = DATA_DIR / "scratch"
         out_dir.mkdir(parents=True, exist_ok=True)
         suffix = "noalign" if args.no_align else "aligned"
         for path, crop in zip((args.first, args.second), crops):
-            out = out_dir / f"{Path(path).stem}_{suffix}.png"
+            out = out_dir / f"{label(path).replace('/', '_').removesuffix('.jpg')}_{suffix}.png"
             cv2.imwrite(str(out), crop)
             print(f"wrote {out}")
 
     mode = "box crop, no alignment" if args.no_align else "aligned"
     print(f"\n{mode}")
-    print(f"  {Path(args.first).name} vs {Path(args.second).name}")
+    print(f"  {label(args.first)} vs {label(args.second)}")
     print(f"  cosine similarity = {cosine_similarity(*embeddings):.4f}")
 
 

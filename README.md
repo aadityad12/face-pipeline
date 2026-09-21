@@ -28,7 +28,7 @@ This also downloads Python 3.12 for you, so you do not need to have it installed
 uv run pytest tests/ -q
 ```
 
-55 tests, and none of them need the models, so this works before the next step.
+57 tests, and none of them need the models, so this works before the next step.
 
 **3. Download the two models**
 
@@ -357,7 +357,7 @@ bottleneck, the history says so instead of being cleaned up afterwards.
 
 ## How the work was planned
 
-All of it is broken down in [the issues](../../issues), grouped into Detection, Recognition,
+All of it is broken down in [the issues](https://github.com/aadityad12/face-pipeline/issues), grouped into Detection, Recognition,
 and Hardening and Measurement. I wrote them before starting so that I had a plan, and I
 commented on them as I went whenever something surprised me.
 
